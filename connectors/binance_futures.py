@@ -92,6 +92,10 @@ class BinancefutureClient:
             return None
 
     def get_wallet_balance(self):
+        """
+        Gets the symbol and current balance
+        :return: A dictionary with {symbol: currentBalance} of each item in the wallet
+        """
         result = self.get_balance()
         return_value = dict()
         for key, value in result.items():
@@ -103,7 +107,6 @@ class BinancefutureClient:
         Returns a list of contracts and their details
         :return:
         """
-
         exchange_info = self.make_request("GET", "/fapi/v1/exchangeInfo", None)
         contracts = dict()
         if exchange_info is not None:
