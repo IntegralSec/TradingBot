@@ -72,26 +72,6 @@ class BinancefutureClient:
         signature = {'signature': signature}
         return signature
 
-    def get_balance_2(self):
-        """
-        WORKING !!!!!
-        Gets account information
-        :return:
-        """
-        # Note that the dataQueryString needs to include 2 things
-        # 1 - timestamp
-        # 2 - signature
-        data = dict()
-        data['timestamp'] = int(time.time() * 1000)
-        signature_data = urlencode(data)
-        key = self.secret_key
-        signature = hmac.new(key.encode(), signature_data.encode(), hashlib.sha256).hexdigest()
-        signature = {'signature': signature}
-        data.update(signature)
-        print(data)
-        account_information = self.make_request("GET", "/fapi/v1/account", data)
-        return account_information
-
     def get_balance(self):
         """
         Gets a list of your holdings
@@ -110,6 +90,13 @@ class BinancefutureClient:
             return balances
         else:
             return None
+
+    def get_wallet_balance(self):
+        result = self.get_balance()
+        return_value = dict()
+        for key, value in result.items():
+            return_value.update({key: value['walletBalance']})
+        return return_value
 
     def get_contracts(self):
         """
