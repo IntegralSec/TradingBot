@@ -51,6 +51,7 @@ if __name__ == '__main__':
     binance = BinancefutureClient(public_key, secret_key, True)
 
 
+
     # logger.debug('Starting TK')
     # root = tk.Tk()
     # root.configure(bg='gray12')

@@ -8,6 +8,8 @@ import websocket
 import threading
 import requests
 import json
+from models import *
+import typing
 
 # API DOCS
 # https://binance-docs.github.io/apidocs/#change-log
@@ -15,7 +17,7 @@ import json
 logger = logging.getLogger()
 
 class BinancefutureClient:
-    def __init__(self, public_key, secret_key, testnet=True, ):
+    def __init__(self, public_key: str, secret_key: str, testnet: bool):
         """
         Initiate the class
         :param testnet: True if using the testnet (default) else False if using production
@@ -32,14 +34,15 @@ class BinancefutureClient:
         self.id = 1
         self.ws = None
         # Create a Thread object and start it
-        t = threading.Thread(target=self.start_ws())
-        t.start()
+        #t = threading.Thread(target=self.start_ws())
+        #t.start()
         self.public_key = public_key
         self.secret_key = secret_key
-
         self.headers = {'X-MBX-APIKEY': self.public_key}
+        self.contracts = self.get_contracts()
+        self.balances = self.get_balance()
 
-    def make_request(self, method, endpoint, data):
+    def make_request(self, method: str, endpoint: str, data: typing.Dict):
         """
         Helper method for making API requests
         :param method:
@@ -68,7 +71,7 @@ class BinancefutureClient:
             logger.error("Error %s while making %s to %s ", response.status_code, method, endpoint)
             return None
 
-    def generate_signature(self, data):
+    def generate_signature(self, data: typing.Dict) -> str:
         """
         Genenereate a signature that the API requires in the last argument
         :param data: the data that you are sending to the API
@@ -84,10 +87,10 @@ class BinancefutureClient:
         signature = {'signature': signature}
         return signature
 
-    def get_balance(self):
+    def get_balance(self) -> typing.Dict[str, Balance]:
         """
         Gets a list of your holdings
-        :return: A dictionary of balances
+        :return: A dictionary of Balance objects
         """
         data = dict()
         data['timestamp'] = int(time.time() * 1000)
@@ -98,7 +101,9 @@ class BinancefutureClient:
         balances = dict()
         if account_data is not None:
             for asset in account_data['assets']:
-                balances.update({asset['asset']: asset})
+                #balances.update({asset['asset']: asset})
+                # Put a balance object into the value
+                balances[asset['asset']] = Balance(asset)
             return balances
         else:
             return None
@@ -120,27 +125,28 @@ class BinancefutureClient:
             return_value.update({asset['asset']: asset['availableBalance']})
         return return_value
 
-    def get_contracts(self):
+    def get_contracts(self) -> typing.Dict[str, Contract]:
         """
-        Returns a list of contracts and their details
-        :return:
+        Gets a list of contracts and their details
+        :return: A Dictionary of Contract objects.  The Keys are strings.
         """
-        exchange_info = self.make_request("GET", "/fapi/v1/exchangeInfo", None)
+        # send an empty dict for the last arg.
+        exchange_info = self.make_request("GET", "/fapi/v1/exchangeInfo", dict())
         contracts = dict()
         if exchange_info is not None:
             for contract_data in exchange_info['symbols']:
-                contracts[contract_data['pair']] = contract_data
+                contracts[contract_data['pair']] = Contract(contract_data)
         return contracts
 
-    def get_historical_candles(self, symbol, interval):
+    def get_historical_candles(self, contract: Contract, interval: int) -> typing.List[Candle]:
         """
         Gets a set of candle information from the exchange
-        :param symbol:
+        :param contract: a Contract object
         :param interval:
-        :return: A nested list.  The child items contain the candle info for the interavl
+        :return: A list of Candle objects
         """
         data = dict()
-        data['symbol'] = symbol
+        data['symbol'] = contract.symbol
         data['interval'] = interval
         data['limit'] = 1000
 
@@ -149,33 +155,33 @@ class BinancefutureClient:
         if raw_candles is not None:
             for c in raw_candles:
                 # note it's appending a list
-                candles.append([c[0], float(c[1]), float(c[2]), float(c[3]), float(c[4])])
+                #candles.append([c[0], float(c[1]), float(c[2]), float(c[3]), float(c[4])])
+                candles.append(Candle(c))
             # If complete
             return candles
         else:
             return None
 
-    def get_bid_ask(self, symbol):
+    def get_bid_ask(self, contract: Contract) -> typing.Dict[str, float]:
         """
         Returns the bid and ask price of a stock
-        :param symbol: The symbol of the stock
+        :param contract: A contract object that contains the symbol
         :return:
         """
         data = dict()
-        data["symbol"] = symbol
+        data["symbol"] = contract.symbol
         ob_data = self.make_request("GET", "/fapi/v1/ticker/bookTicker", data)
         if ob_data is not None:
-            if symbol not in self.prices:
-                self.prices[symbol] = {"bid": float(ob_data["bidPrice"]), "ask": float(ob_data["askPrice"])}
+            if contract.symbol not in self.prices:
+                self.prices[contract.symbol] = {"bid": float(ob_data["bidPrice"]), "ask": float(ob_data["askPrice"])}
             else:
-                self.prices[symbol]['bid'] = float(ob_data['bidPrice'])
-                self.prices[symbol]['ask'] = float(ob_data['askPrice'])
-            return None
-        return self.prices[symbol]
+                self.prices[contract.symbol]['bid'] = float(ob_data['bidPrice'])
+                self.prices[contract.symbol]['ask'] = float(ob_data['askPrice'])
+            return self.prices[contract.symbol]
 
-    def place_order(self, symbol, side, quantity, order_type, price=None, tif=None):
+    def place_order(self, contract: Contract, side: str, quantity: float, order_type: str, price=None, tif=None) -> OrderStatus:
         data = dict()
-        data['symbol'] = symbol
+        data['symbol'] = contract.symbol
         data['side'] = side
         data['quantity'] = quantity
         data['type'] = order_type
@@ -188,13 +194,15 @@ class BinancefutureClient:
         data.update(signature)
         order_status = self.make_request("POST", "/fapi/v1/order", data)
         if order_status is not None:
+            # return an "OrderStatus" object from the Models module
+            order_status = OrderStatus(order_status)
             return order_status
         else:
             return False
 
-    def cancel_order(self, symbol, order_id=None, orig_client_order_id=None):
+    def cancel_order(self, contract: Contract, order_id=None, orig_client_order_id=None) -> OrderStatus:
         data = dict()
-        data['symbol'] = symbol
+        data['symbol'] = contract.symbol
         if order_id is not None:
             data['order_id'] = order_id
         if orig_client_order_id is not None:
@@ -204,13 +212,15 @@ class BinancefutureClient:
         data.update(signature)
         order_status = self.make_request("DELETE", "/fapi/v1/order", data)
         if order_status is not None:
+            # return an "OrderStatus" object from the Models module
+            order_status = OrderStatus(order_status)
             return order_status
         else:
             return False
 
-    def get_order_status(self, symbol, order_id=None, orig_client_order_id=None):
+    def get_order_status(self, contract: Contract, order_id=None, orig_client_order_id=None) -> OrderStatus:
         data = dict()
-        data['symbol'] = symbol
+        data['symbol'] = contract.symbol
         if order_id is not None:
             data['order_id'] = order_id
         if orig_client_order_id is not None:
@@ -219,14 +229,19 @@ class BinancefutureClient:
         signature = self.generate_signature(data)
         data.update(signature)
         order_status = self.make_request("GET", "/fapi/v1/order", data)
-        return order_status
+        if order_status is not None:
+            # return an "OrderStatus" object from the Models module
+            order_status = OrderStatus(order_status)
+            return order_status
+        else:
+            return False
 
     def start_ws(self):
         self.ws = websocket.WebSocketApp(self.wss_url, on_open=self.on_open, on_close=self.on_close, on_error=self.on_error, on_message=self.on_message)
         self.ws.run_forever()
         return
 
-    def on_error(self, wsapp, err):
+    def on_error(self, wsapp, err: str):
         logger.warning("Binance WebSocket connection error: " + str(err))
         return
 
@@ -242,7 +257,7 @@ class BinancefutureClient:
             logger.info("close status code: " + str(close_status_code))
             logger.info("close message: " + str(close_msg))
 
-    def on_message(self, wsapp, msg):
+    def on_message(self, wsapp, msg: str):
         # convert string to json
         data = json.loads(msg)
         if "e" in data:
@@ -257,11 +272,11 @@ class BinancefutureClient:
 
         return
 
-    def subscribe_channel(self, symbol):
+    def subscribe_channel(self, contract: Contract):
         data = dict()
         data['method'] = "SUBSCRIBE"
         data['params'] = []
-        data['params'].append(symbol.lower() + "@bookTicker")
+        data['params'].append(contract.symbol.lower() + "@bookTicker")
         data['id'] = self.id
         # convert json to string and send
         self.ws.send(json.dumps(data))
