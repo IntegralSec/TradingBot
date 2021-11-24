@@ -50,7 +50,6 @@ if __name__ == '__main__':
 
     binance = BinancefutureClient(public_key, secret_key, True)
 
-    print(binance.get_wallet_balance())
 
     # logger.debug('Starting TK')
     # root = tk.Tk()
