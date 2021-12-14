@@ -3,6 +3,7 @@ import os
 import tkinter as tk
 import logging
 from connectors.binance_futures import BinancefutureClient
+import models
 
 
 log_filename = 'logfile.txt'
@@ -32,8 +33,7 @@ logger.addHandler(ch)
 logger.info("init main.py")
 
 if __name__ == '__main__':
-
-    # Get the Keys
+    # Load the config file and get keys
     load_dotenv()
     logger.info("Loading Keys")
     public_key = os.environ.get("binance_test_public_key")
@@ -52,13 +52,14 @@ if __name__ == '__main__':
 
 
 
-    # logger.debug('Starting TK')
-    # root = tk.Tk()
-    # root.configure(bg='gray12')
-    # calibri_font = ("Calibri", 11, "normal")
-    #
-    # root.mainloop()
-    # logger.debug('Exit TK')
+
+    logger.debug('Starting TK')
+    root = tk.Tk()
+    root.configure(bg='gray12')
+    calibri_font = ("Calibri", 11, "normal")
+
+    root.mainloop()
+    logger.debug('Exit TK')
 
 
 
