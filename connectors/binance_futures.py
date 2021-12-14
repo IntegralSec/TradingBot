@@ -31,7 +31,7 @@ class BinancefutureClient:
             self.wss_url = "wss://fstream.binance.com/ws"
             logger.info("Binance Futures Client successfully initiated")
         self.prices = dict()
-        self.id = 1
+        self.ws_id = 1
         self.ws = None
         # Create a Thread object and start it
         #t = threading.Thread(target=self.start_ws())
@@ -51,13 +51,26 @@ class BinancefutureClient:
         :return:
         """
         if method == "GET":
-            response = requests.get(self.base_url + endpoint, params=data, headers=self.headers)
+            try:
+                response = requests.get(self.base_url + endpoint, params=data, headers=self.headers)
+            except Exception as e:
+                logger.error("Connection error while making %s request to %s: %s", method, endpoint, e)
+                return None
         elif method == "POST":
-            response = requests.post(self.base_url + endpoint, params=data, headers=self.headers)
+            try:
+                response = requests.post(self.base_url + endpoint, params=data, headers=self.headers)
+            except Exception as e:
+                logger.error("Connection error while making %s request to %s: %s", method, endpoint, e)
+                return None
         elif method == "DELETE":
-            response = requests.delete(self.base_url + endpoint, params=data, headers=self.headers)
+            try:
+                response = requests.delete(self.base_url + endpoint, params=data, headers=self.headers)
+            except Exception as e:
+                logger.error("Connection error while making %s request to %s: %s", method, endpoint, e)
+                return None
         else:
             return ValueError("The Method arg only supports GET, POST or DELETE")
+
 
         if response.status_code == 200:
             return response.json()
@@ -277,8 +290,12 @@ class BinancefutureClient:
         data['method'] = "SUBSCRIBE"
         data['params'] = []
         data['params'].append(contract.symbol.lower() + "@bookTicker")
-        data['id'] = self.id
+        data['id'] = self.ws_id
         # convert json to string and send
-        self.ws.send(json.dumps(data))
-        self.id += 1
+        try:
+            self.ws.send(json.dumps(data))
+        except Exception as e:
+            logger.error("WebSocket error while subscribing to %s: %s", contract.symbol, e)
+
+        self.ws_id += 1
         return
