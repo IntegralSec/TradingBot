@@ -25,13 +25,13 @@ class BinancefutureClient:
         if testnet:
             self._base_url = "https://testnet.binancefuture.com"
             self._wss_url = "wss://stream.binancefuture.com/ws"
-            logger.info("Binance Futures Testnet Client successfully initiated")
+            logger.debug("Binance Futures Testnet Client successfully initiated")
         else:
             self._base_url = "https://fapi.binance.com"
             self._wss_url = "wss://fstream.binance.com/ws"
-            logger.info("Binance Futures Client successfully initiated")
+            logger.debug("Binance Futures Client successfully initiated")
         self.prices = dict()
-        self._ws_id = 1
+        self._ws_id = 1     # used to keep track of each WebSocket subscription
         self._ws = None
         self._public_key = public_key
         self._secret_key = secret_key
@@ -41,6 +41,11 @@ class BinancefutureClient:
         # Create a Thread object and start it
         t = threading.Thread(target=self._start_ws())
         t.start()
+
+
+    def print_contracts(self):
+        for key, value in self.get_contracts().items():
+            print(key + "->" + value.symbol)
 
     def make_request(self, method: str, endpoint: str, data: typing.Dict):
         """
@@ -254,7 +259,7 @@ class BinancefutureClient:
                                           on_open=self._on_open,
                                           on_close=self._on_close,
                                           on_error=self._on_error,
-                                          on_message=self.on_message)
+                                          on_message=self._on_message)
         while True:
             try:
                 self._ws.run_forever()
@@ -263,29 +268,24 @@ class BinancefutureClient:
             time.sleep(2)
         return
 
-    def on_message(ws, wsapp, msg):
-        print(wsapp)
-        print(msg)
-
-
-    def _on_error(self, wsapp, err: str):
+    def _on_error(self, ws, err: str):
         logger.warning("Binance WebSocket connection error: " + str(err))
         return
 
-    def _on_open(self, wsapp):
+    def _on_open(self, ws):
         logger.debug("Binance WebSocket connection opened")
-        contract = self.contracts['BTCUSDT']
-        self.subscribe_channel(contract)
+        # subscribe to the BTC channel by default
+        self.subscribe_channel('BTCUSDT')
         return
 
-    def _on_close(self, wsapp, close_status_code, close_msg):
+    def _on_close(self, ws, close_status_code, close_msg):
         # Because on_close was triggered, we know the opcode = 8
         logger.info("Binance WebSocket connection closed")
         if close_status_code or close_msg:
             logger.info("close status code: " + str(close_status_code))
             logger.info("close message: " + str(close_msg))
 
-    def _on_message(self, wsapp, msg: str):
+    def _on_message(self, ws, msg: str):
         # convert string to json
         data = json.loads(msg)
         if "e" in data:
@@ -299,16 +299,16 @@ class BinancefutureClient:
             print(self.prices[symbol])
         return
 
-    def subscribe_channel(self, contract: Contract):
+    def subscribe_channel(self, symbol):
         data = dict()
         data['method'] = "SUBSCRIBE"
         data['params'] = []
-        data['params'].append(contract.symbol.lower() + "@bookTicker")
+        data['params'].append(symbol.lower() + "@bookTicker")
         data['id'] = self._ws_id
         # convert json to string and send
         try:
             self._ws.send(json.dumps(data))
         except Exception as e:
-            logger.error("WebSocket error while subscribing to %s: %s", contract.symbol, e)
+            logger.error("WebSocket error while subscribing to %s: %s", symbol, e)
         self._ws_id += 1
         return
