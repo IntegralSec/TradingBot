@@ -53,13 +53,14 @@ if __name__ == '__main__':
 
 
 
-    logger.debug('Starting TK')
-    root = tk.Tk()
-    root.configure(bg='gray12')
-    calibri_font = ("Calibri", 11, "normal")
 
-    root.mainloop()
-    logger.debug('Exit TK')
+    # logger.debug('Starting TK')
+    # root = tk.Tk()
+    # root.configure(bg='gray12')
+    # calibri_font = ("Calibri", 11, "normal")
+    #
+    # root.mainloop()
+    # logger.debug('Exit TK')
 
 
 
